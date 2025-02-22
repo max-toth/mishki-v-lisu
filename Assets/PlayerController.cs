@@ -9,46 +9,58 @@ namespace pcpp
     public class PlayerController : NetworkBehaviour
     {
 
-        private float horizontal;
-        private float vertical;
+        [SerializeField] float movementSpeedBase = 5;
 
-        public NetworkVariable<Vector3> Position = new NetworkVariable<Vector3>();
-
-        private float speed = 8f;
-
-        // [SerializeField] private Rigidbody2D rb;
-
-        // Update is called once per frame
-        void Update()
-        {
-            horizontal = Input.GetAxisRaw("Horizontal");
-            vertical = Input.GetAxisRaw("Vertical");
-        }
-
-        private void FixedUpdate()
-        {
-            // rb.linearVelocity = new Vector2(horizontal, vertical).normalized;
-        }
+        private Animator animator;
+        private Rigidbody2D rb;
+        private float movementSpeedMultiplier = 1;
+        private Vector2 currentMoveDirection;
+        public NetworkVariable<int> playerScore = new NetworkVariable<int>();
 
         public override void OnNetworkSpawn()
         {
-            if (IsOwner)
+            if (!IsOwner)
             {
-                Move();
+                enabled = false;
+                return;
             }
         }
 
-        public void Move()
+        void Start()
         {
-            SubmitPositionRequestRpc();
-        }    
+            animator = GetComponent<Animator>();
+            rb = GetComponent<Rigidbody2D>();
+        }
 
-        
-        [Rpc(SendTo.Server)]
-        void SubmitPositionRequestRpc(RpcParams rpcParams = default)
+        void Update()
         {
-            transform.position = new Vector3(horizontal, vertical, 0f);
-            Position.Value = transform.position;
+            Move();
+        }
+
+        private void Move()
+        {
+            Vector2 movementDirection = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+            MoveServerRPC(movementDirection, movementSpeedBase, movementSpeedMultiplier);
+        }
+
+        [ServerRpc]
+        private void MoveServerRPC(Vector2 movementDirection, float movementSpeedBase, float movementSpeedMultiplier)
+        {
+            Vector2 moveVector = movementDirection.normalized * movementSpeedBase * movementSpeedMultiplier;
+
+            animator = GetComponent<Animator>();
+            rb = GetComponent<Rigidbody2D>();
+
+            animator.SetFloat("Speed", moveVector.magnitude);
+            rb.linearVelocity = moveVector;
+
+            if (moveVector != Vector2.zero)
+            {
+                currentMoveDirection = new Vector2(moveVector.normalized.x, moveVector.normalized.y);
+                animator.SetFloat("Horizontal", moveVector.normalized.x);
+                animator.SetFloat("Vertical", moveVector.normalized.y);
+                Debug.Log("" + moveVector.normalized.x + ":" + moveVector.normalized.y);
+            }
         }
     }
 }
