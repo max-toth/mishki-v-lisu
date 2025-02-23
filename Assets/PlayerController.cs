@@ -13,18 +13,9 @@ namespace pcpp
 
         private Animator animator;
         private Rigidbody2D rb;
-        private float movementSpeedMultiplier = 1;
+        private float movementSpeedMultiplier = 0.5f;
         private Vector2 currentMoveDirection;
         public NetworkVariable<int> playerScore = new NetworkVariable<int>();
-
-        public override void OnNetworkSpawn()
-        {
-            if (!IsOwner)
-            {
-                enabled = false;
-                return;
-            }
-        }
 
         void Start()
         {
@@ -34,19 +25,23 @@ namespace pcpp
 
         void Update()
         {
-            Move();
+
+            Vector2 input = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+
+            if (IsServer && IsLocalPlayer) 
+            {
+                Move(input);
+            } else if (IsClient && IsLocalPlayer) 
+            {
+                
+                MoveServerRPC(input);
+            }
         }
 
-        private void Move()
+        private void Move(Vector2 _input)
         {
-            Vector2 movementDirection = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-            MoveServerRPC(movementDirection, movementSpeedBase, movementSpeedMultiplier);
-        }
-
-        [ServerRpc]
-        private void MoveServerRPC(Vector2 movementDirection, float movementSpeedBase, float movementSpeedMultiplier)
-        {
-            Vector2 moveVector = movementDirection.normalized * movementSpeedBase * movementSpeedMultiplier;
+            
+            Vector2 moveVector = _input.normalized * movementSpeedBase * movementSpeedMultiplier;
 
             animator = GetComponent<Animator>();
             rb = GetComponent<Rigidbody2D>();
@@ -59,8 +54,14 @@ namespace pcpp
                 currentMoveDirection = new Vector2(moveVector.normalized.x, moveVector.normalized.y);
                 animator.SetFloat("Horizontal", moveVector.normalized.x);
                 animator.SetFloat("Vertical", moveVector.normalized.y);
-                Debug.Log("" + moveVector.normalized.x + ":" + moveVector.normalized.y);
             }
         }
+
+        [Rpc(SendTo.Server)]
+        private void MoveServerRPC(Vector2 _input)
+        {
+            Move(_input);
+        }
+
     }
 }
